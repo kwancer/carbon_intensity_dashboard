@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'ci_service.dart'; // API fetch service
+import 'package:fl_chart/fl_chart.dart'; // Chart library
 
 void main() {
   runApp(const MyApp());
@@ -40,7 +42,8 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int currentIntensity = 0;
-  List<Map<String, dynamic>> halfHourlyData = []; // Placeholder for API data
+  List<Map<String, dynamic>> halfHourlyData = []; // Placeholder for half-hourly data
+  final CarbonIntensityService apiService = CarbonIntensityService();
 
   @override
   void initState() {
@@ -48,17 +51,20 @@ class _MyHomePageState extends State<MyHomePage> {
     fetchCarbonData(); // Fetch data on initialization
   }
 
-  // Simulate fetching data (replace with actual API integration)
   Future<void> fetchCarbonData() async {
-    await Future.delayed(const Duration(seconds: 2)); // Simulated delay
-    setState(() {
-      currentIntensity = 250; // Example data
-      halfHourlyData = [
-        {'time': '00:00', 'intensity': 200},
-        {'time': '00:30', 'intensity': 210},
-        // More data points here...
-      ];
-    });
+    try {
+      final intensityData = await apiService.fetchCurrentIntensity();
+      final halfHourly = await apiService.fetchHalfHourlyIntensity();
+      setState(() {
+        currentIntensity = intensityData['forecast'];
+        halfHourlyData = halfHourly.map((data) => {
+          'time': data['from'], // Adjust time format if needed
+          'intensity': data['intensity']['forecast']
+        }).toList();
+      });
+    } catch (e) {
+      print('Error fetching data: $e');
+    }
   }
 
   @override
@@ -85,25 +91,18 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            // Display current intensity with FutureBuilder
-            FutureBuilder(
-              future: fetchCarbonData(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                } else if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                } else {
-                  return Text(
+            currentIntensity == 0
+                ? const CircularProgressIndicator()
+                : Text(
                     'Current Carbon Intensity: $currentIntensity gCO2/kWh',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Theme.of(context).primaryColor),
-                  );
-                }
-              },
-            ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineLarge
+                        ?.copyWith(color: Theme.of(context).primaryColor),
+                  ),
             const SizedBox(height: 20),
             
-            // Half-hourly data graph placeholder
+            // Graph for half-hourly data
             Expanded(
               child: Container(
                 margin: const EdgeInsets.all(16),
@@ -122,15 +121,71 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 child: halfHourlyData.isEmpty
                     ? const Center(child: Text('Loading half-hourly data...'))
-                    : const Column(
+                    : Column(
                         children: [
-                          Text(
-                            'Carbon Intensity Today (Half-Hourly)',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          const Text(
+                            'Carbon Intensity Today',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
                           ),
-                          SizedBox(height: 10),
+                          const SizedBox(height: 10),
                           Expanded(
-                            child: Placeholder(), // Replace with graph widget, e.g., fl_chart
+                            child: LineChart(
+                              LineChartData(
+                                lineBarsData: [
+                                  LineChartBarData(
+                                    spots: halfHourlyData
+                                        .asMap()
+                                        .entries
+                                        .map(
+                                          (entry) => FlSpot(
+                                              entry.key.toDouble(),
+                                              entry.value['intensity']
+                                                  .toDouble()),
+                                        )
+                                        .toList(),
+                                    isCurved: true,
+                                    dotData: FlDotData(show: false),
+                                    belowBarData: BarAreaData(show: true),
+                                    barWidth: 2,
+                                  ),
+                                ],
+                                minY: 0,
+                                maxY: halfHourlyData.fold(
+                                    0,
+                                    (max, data) => data['intensity'] > max
+                                        ? data['intensity']
+                                        : max) + 50,
+                                titlesData: FlTitlesData(
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      interval: 50,
+                                      getTitlesWidget: (value, _) =>
+                                          Text(value.toInt().toString(),
+                                              style: const TextStyle(
+                                                  color: Colors.white54)),
+                                    ),
+                                  ),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      interval: 10,
+                                      getTitlesWidget: (value, _) =>
+                                          Text(halfHourlyData[value.toInt()]
+                                                  ['time']
+                                              .substring(11, 16)),
+                                    ),
+                                  ),
+                                ),
+                                borderData: FlBorderData(
+                                  show: true,
+                                  border: Border.all(
+                                      color: Colors.white54, width: 1),
+                                ),
+                                gridData: FlGridData(show: false),
+                              ),
+                            ),
                           ),
                         ],
                       ),
