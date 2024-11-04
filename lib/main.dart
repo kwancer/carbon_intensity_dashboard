@@ -16,6 +16,7 @@ class MyApp extends StatelessWidget {
       themeMode: ThemeMode.dark,
       darkTheme: ThemeData(
         brightness: Brightness.dark,
+        //colour from Tewke website
         primaryColor: const Color.fromRGBO(95, 247, 194, 1),
         scaffoldBackgroundColor: Colors.black,
         colorScheme: ColorScheme.fromSeed(
@@ -43,6 +44,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int currentIntensity = 0;
   List<Map<String, dynamic>> halfHourlyData = [];
+  int maxToday = 0;
+  int minToday = 0;
   final CarbonIntensityService apiService = CarbonIntensityService();
 
   @override
@@ -58,10 +61,14 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         currentIntensity = intensityData['actual'];
         halfHourlyData = halfHourly.map((data) => {
-          'time': data['from'], // Adjust time format if needed
+          'time': data['to'],
           'intensity': data['intensity']['actual'] ?? data['intensity']['forecast'],
           'wasForecast': data['intensity']['actual'] == null,
         }).toList();
+        maxToday = halfHourlyData.fold(
+            0, (max, data) => data['intensity'] > max ? data['intensity'] : max);
+        minToday = halfHourlyData.fold(
+            300, (min, data) => data['intensity'] < min ? data['intensity'] : min);
       });
     } catch (e) {
       showDialog(
@@ -79,6 +86,8 @@ class _MyHomePageState extends State<MyHomePage> {
       title: widget.title,
       currentIntensity: currentIntensity,
       halfHourlyData: halfHourlyData,
+      maxToday: maxToday,
+      minToday: minToday,
     );
   }
 }
@@ -87,12 +96,16 @@ class DashboardPage extends StatelessWidget {
   final String title;
   final int currentIntensity;
   final List<Map<String, dynamic>> halfHourlyData;
+  final int maxToday;
+  final int minToday;
 
   const DashboardPage({
     super.key,
     required this.title,
     required this.currentIntensity,
     required this.halfHourlyData,
+    required this.maxToday,
+    required this.minToday,
   });
 
   @override
@@ -124,7 +137,11 @@ class DashboardPage extends StatelessWidget {
                 : CurrentIntensityWidget(currentIntensity: currentIntensity),
             const SizedBox(height: 20),
             Expanded(
-              child: IntensityGraph(halfHourlyData: halfHourlyData),
+              child: IntensityGraph(
+                halfHourlyData: halfHourlyData,
+                maxToday: maxToday,
+                minToday: minToday
+                ),
             ),
           ],
         ),
@@ -196,10 +213,14 @@ class ErrorDialog extends StatelessWidget {
 
 class IntensityGraph extends StatelessWidget {
   final List<Map<String, dynamic>> halfHourlyData;
+  final int maxToday;
+  final int minToday;
 
   const IntensityGraph({
     super.key,
     required this.halfHourlyData,
+    required this.minToday,
+    required this.maxToday,
   });
 
   @override
@@ -264,11 +285,8 @@ class IntensityGraph extends StatelessWidget {
                           dashArray: [5, 5],
                         ),
                       ],
-                      minY: 0,
-                      maxY: halfHourlyData.fold(
-                              0,
-                              (max, data) => data['intensity'] > max ? data['intensity'] : max) +
-                          50,
+                      minY: minToday - 5,
+                      maxY: maxToday + 5,
                       titlesData: FlTitlesData(
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
@@ -319,7 +337,7 @@ class CustomLegend extends StatelessWidget {
             children: [
               Container(width: 20, height: 2, color: Colors.cyan),
               const SizedBox(width: 5),
-              const Text('Actual Data', style: TextStyle(color: Colors.white)),
+              const Text('Actual', style: TextStyle(color: Colors.white)),
             ],
           ),
           const SizedBox(width: 20),
@@ -333,7 +351,7 @@ class CustomLegend extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 5),
-              const Text('Forecasted Data', style: TextStyle(color: Colors.white)),
+              const Text('Forecasted (Dashed)', style: TextStyle(color: Colors.white)),
             ],
           ),
         ],

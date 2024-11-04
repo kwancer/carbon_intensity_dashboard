@@ -11,7 +11,7 @@ class CarbonIntensityService {
     if (response.statusCode == 200) {
       // Parse JSON response
       final data = json.decode(response.body);
-      return data['data'][0]['intensity']; // Adjust this to match actual structure
+      return data['data'][0]['intensity'];
     } else {
       throw Exception('Failed to load current intensity');
     }
@@ -23,24 +23,9 @@ class CarbonIntensityService {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      return data['data']; // Returns list of half-hourly intensities
+      return data['data'];
     } else {
       throw Exception('Failed to load half-hourly intensity');
     }
-  }
-}
-
-
-class CarbonIntensity {
-  final int forecast;
-  final int actual;
-
-  CarbonIntensity({required this.forecast, required this.actual});
-
-  factory CarbonIntensity.fromJson(Map<String, dynamic> json) {
-    return CarbonIntensity(
-      forecast: json['forecast'] as int,
-      actual: json['actual'] as int,
-    );
   }
 }
