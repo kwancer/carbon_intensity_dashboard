@@ -42,7 +42,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int currentIntensity = 0;
-  List<Map<String, dynamic>> halfHourlyData = []; // Placeholder for half-hourly data
+  List<Map<String, dynamic>> halfHourlyData = [];
   final CarbonIntensityService apiService = CarbonIntensityService();
 
   @override
@@ -56,14 +56,33 @@ class _MyHomePageState extends State<MyHomePage> {
       final intensityData = await apiService.fetchCurrentIntensity();
       final halfHourly = await apiService.fetchHalfHourlyIntensity();
       setState(() {
-        currentIntensity = intensityData['forecast'];
+        currentIntensity = intensityData['actual'];
         halfHourlyData = halfHourly.map((data) => {
           'time': data['from'], // Adjust time format if needed
-          'intensity': data['intensity']['forecast']
+          'intensity': data['intensity']['actual'] ?? data['intensity']['forecast'],
+          'wasForecast': data['intensity']['actual'] == null,
         }).toList();
       });
     } catch (e) {
       print('Error fetching data: $e');
+      //diplay a pop up
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+        title: const Text('Error'),
+        content: Text('Error fetching data: $e'),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('OK'),
+            onPressed: () {
+          Navigator.of(context).pop();
+            },
+          ),
+        ],
+          );
+        },
+      );
     }
   }
 
@@ -90,17 +109,34 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            currentIntensity == 0
-                ? const CircularProgressIndicator()
-                : Text(
-                    'Current Carbon Intensity: $currentIntensity gCO2/kWh',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineLarge
-                        ?.copyWith(color: Theme.of(context).primaryColor),
-                  ),
+children: <Widget>[
+  currentIntensity == 0
+      ? const CircularProgressIndicator()
+      : Column(
+          children: [
             const SizedBox(height: 20),
+
+            Text(
+              'Current Carbon Intensity',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white70,
+                    fontSize: 18,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$currentIntensity gCO₂/kWh',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 36,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+  const SizedBox(height: 20),
             
             // Graph for half-hourly data
             Expanded(
@@ -133,58 +169,133 @@ class _MyHomePageState extends State<MyHomePage> {
                             child: LineChart(
                               LineChartData(
                                 lineBarsData: [
+                                  // Actual intensity data - solid line
                                   LineChartBarData(
                                     spots: halfHourlyData
+                                        .where((data) => !data['wasForecast'])
+                                        .toList()
                                         .asMap()
                                         .entries
-                                        .map(
-                                          (entry) => FlSpot(
-                                              entry.key.toDouble(),
-                                              entry.value['intensity']
-                                                  .toDouble()),
-                                        )
+                                        .map((entry) => FlSpot(entry.key.toDouble(), entry.value['intensity'].toDouble()))
                                         .toList(),
                                     isCurved: true,
                                     dotData: FlDotData(show: false),
                                     belowBarData: BarAreaData(show: true),
                                     barWidth: 2,
                                   ),
+                                  // Forecasted intensity data - dashed line
+                                  LineChartBarData(
+                                    spots: [
+                                      FlSpot(
+                                        halfHourlyData
+                                            .indexWhere((data) => data['wasForecast'])
+                                            .toDouble() - 1,
+                                        halfHourlyData
+                                            .where((data) => !data['wasForecast'])
+                                            .last['intensity']
+                                            .toDouble(),
+                                      ),
+                                      ...halfHourlyData
+                                          .where((data) => data['wasForecast'])
+                                          .toList()
+                                          .asMap()
+                                          .entries
+                                          .map((entry) => FlSpot(
+                                              (halfHourlyData.indexWhere((data) => data['wasForecast']) + entry.key).toDouble(),
+                                              entry.value['intensity'].toDouble()))
+                                          .toList(),
+                                    ],
+                                    isCurved: true,
+                                    dotData: FlDotData(show: false),
+                                    belowBarData: BarAreaData(show: false),
+                                    barWidth: 2,
+                                    dashArray: [5, 5],
+                                  ),
                                 ],
+                                lineTouchData: LineTouchData(
+                                  enabled: false, // Disables pointer on hover
+                                ), 
                                 minY: 0,
                                 maxY: halfHourlyData.fold(
-                                    0,
-                                    (max, data) => data['intensity'] > max
-                                        ? data['intensity']
-                                        : max) + 50,
+                                        0,
+                                        (max, data) => data['intensity'] > max
+                                            ? data['intensity']
+                                            : max) + 50,
                                 titlesData: FlTitlesData(
-                                  leftTitles: AxisTitles(
+                                    leftTitles: AxisTitles(
                                     sideTitles: SideTitles(
                                       showTitles: true,
                                       interval: 50,
+                                      reservedSize: 30,
                                       getTitlesWidget: (value, _) =>
-                                          Text(value.toInt().toString(),
-                                              style: const TextStyle(
-                                                  color: Colors.white54)),
+                                        Text(value.toInt().toString(), style: const TextStyle(color: Colors.white54)),
                                     ),
-                                  ),
+                                    ),
                                   bottomTitles: AxisTitles(
                                     sideTitles: SideTitles(
                                       showTitles: true,
                                       interval: 10,
                                       getTitlesWidget: (value, _) =>
-                                          Text(halfHourlyData[value.toInt()]
-                                                  ['time']
-                                              .substring(11, 16)),
+                                          Text(halfHourlyData[value.toInt()]['time'].substring(11, 16)),
                                     ),
                                   ),
+                                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                 ),
                                 borderData: FlBorderData(
                                   show: true,
-                                  border: Border.all(
-                                      color: Colors.white54, width: 1),
+                                  border: Border.all(color: Colors.white54, width: 1),
                                 ),
                                 gridData: FlGridData(show: false),
                               ),
+                            ),
+                          ),
+                          // Custom Legend Row
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Actual Data Legend
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 20,
+                                      height: 2,
+                                      color: Colors.cyan,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    const Text(
+                                      'Actual Data',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 20),
+                                // Forecasted Data Legend
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 20,
+                                      height: 2,
+                                      decoration: const BoxDecoration(
+                                        border: Border(
+                                          top: BorderSide(
+                                            color: Colors.cyan,
+                                            width: 2,
+                                            style: BorderStyle.solid,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    const Text(
+                                      'Forecasted Data',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ],
