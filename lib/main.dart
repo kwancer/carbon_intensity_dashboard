@@ -134,7 +134,11 @@ class DashboardPage extends StatelessWidget {
           children: <Widget>[
             currentIntensity == 0
                 ? const CircularProgressIndicator()
-                : CurrentIntensityWidget(currentIntensity: currentIntensity),
+                : CurrentIntensityWidget(
+                  currentIntensity: currentIntensity,
+                  maxToday: maxToday,
+                  minToday: minToday,
+                  ),
             const SizedBox(height: 20),
             Expanded(
               child: IntensityGraph(
@@ -152,14 +156,31 @@ class DashboardPage extends StatelessWidget {
 
 class CurrentIntensityWidget extends StatelessWidget {
   final int currentIntensity;
+  final int maxToday;
+  final int minToday;
 
   const CurrentIntensityWidget({
     super.key,
     required this.currentIntensity,
+    required this.maxToday,
+    required this.minToday,
   });
+
+
+  String getIntensityLevel() {
+    if (currentIntensity <= minToday + (maxToday - minToday) / 3) {
+      return 'LOW';
+    } else if (currentIntensity <= minToday + 2 * (maxToday - minToday) / 3) {
+      return 'MEDIUM';
+    } else {
+      return 'HIGH';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    
+  
     return Column(
       children: [
         const SizedBox(height: 20),
@@ -178,6 +199,19 @@ class CurrentIntensityWidget extends StatelessWidget {
                 color: Theme.of(context).primaryColor,
                 fontWeight: FontWeight.bold,
                 fontSize: 36,
+              ),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          getIntensityLevel(),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          color: getIntensityLevel() == 'LOW'
+              ? Colors.green
+              : getIntensityLevel() == 'MEDIUM'
+            ? Colors.yellow
+            : Colors.red,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
               ),
           textAlign: TextAlign.center,
         ),
