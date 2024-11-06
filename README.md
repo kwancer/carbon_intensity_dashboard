@@ -7,7 +7,7 @@ Displays the graph for the current day with actual data when available and predi
 I  matched the colour scheme to the Tewke website.
 
 ## Assumptions
-Only need to refreash data when the app is first loaded.
+Only need to refresh data when the app is first loaded.
 
 
 ## Future Improvements
